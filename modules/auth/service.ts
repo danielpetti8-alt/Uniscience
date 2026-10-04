@@ -6,8 +6,9 @@ import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
-import { CATEGORIES, LIMITS, ROLES, TOKEN_TYPES, USER_STATUS } from '@/lib/constants'
+import { CATEGORIES, LIMITS, NOTIFICATION_TYPES, ROLES, TOKEN_TYPES, USER_STATUS } from '@/lib/constants'
 import { sendPasswordResetEmail, sendVerificationEmail } from '@/lib/adapters/mail'
+import { createNotification } from '@/modules/notifications/service'
 import { AuthError } from './errors'
 import { validateRegisterInput, type RegisterInput } from './validation'
 import { generateUniqueUsername } from './username'
@@ -144,6 +145,16 @@ export async function verifyEmail(token: string) {
         // Talaba -> faol; professor/tadqiqotchi -> admin tasdig'i kutiladi (FR-04)
         status: isStudent ? USER_STATUS.ACTIVE : USER_STATUS.PENDING_APPROVAL,
       },
+    })
+    // Birinchi bildirishnoma — lenta keyingi voqealarni ko'rsatadi (FR-68)
+    await createNotification(tx, {
+      userId: row.userId,
+      type: NOTIFICATION_TYPES.SYSTEM,
+      title: isStudent ? 'Hisobingiz faollashtirildi' : 'Hisobingiz tasdiqlashda',
+      body: isStudent
+        ? 'Endi maqola yuklash va reytingda qatnashishingiz mumkin.'
+        : "Admin tasdig'ini kutyapsiz. Tasdiqlangach barcha imkoniyatlar ochiladi.",
+      link: '/profil',
     })
   })
 
@@ -339,6 +350,14 @@ export async function approveUser(adminId: string, userId: string) {
   await prisma.auditLog.create({
     data: { adminId, action: 'approve', entity: 'user', entityId: userId },
   })
+  // FR-68: holat o'zgarishi foydalanuvchiga bildiriladi
+  await createNotification(prisma, {
+    userId,
+    type: NOTIFICATION_TYPES.SYSTEM,
+    title: 'Hisobingiz tasdiqlandi',
+    body: 'Admin hisobingizni tasdiqladi. Barcha imkoniyatlar ochiq!',
+    link: '/profil',
+  })
   return { approved: true }
 }
 
@@ -348,6 +367,13 @@ export async function rejectUser(adminId: string, userId: string, reason?: strin
   await prisma.user.update({ where: { id: userId }, data: { status: USER_STATUS.BLOCKED } })
   await prisma.auditLog.create({
     data: { adminId, action: 'reject', entity: 'user', entityId: userId, meta: JSON.stringify({ reason }) },
+  })
+  // FR-68: rad etish sababi bildirishnomada ko'rinadi
+  await createNotification(prisma, {
+    userId,
+    type: NOTIFICATION_TYPES.SYSTEM,
+    title: 'Hisobingiz tasdiqlanmadi',
+    body: reason?.trim() ? `Sabab: ${reason.trim()}` : 'Admin hisobingizni tasdiqlamadi.',
   })
   return { rejected: true }
 }

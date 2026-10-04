@@ -74,6 +74,7 @@ model Profile {
   lavozim      String?
   kafedra      String?
   bakalavrOtm  String? // magistratura: bakalavr bitirgan OTM (FR-03)
+  telefon      String? // aloqa — foydalanuvchi o'zi tahrirlaydi (FR-13)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
