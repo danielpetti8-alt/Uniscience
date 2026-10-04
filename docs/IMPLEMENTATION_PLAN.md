@@ -84,14 +84,16 @@ uniscience/
 
 ## 3. Ma'lumotlar bazasi sxemasi (TZ 19-A asosida)
 
+> **Aniq model inventory: 24 model** — quyidagi ro'yxat `prisma/schema.prisma` bilan **1:1 mos**.
 > SQLite'da yoziladi, MySQL'ga o'tishda faqat `provider` o'zgaradi. Enumlar yo'q — barcha `String`.
+> **Tuzatishlar (2026-10-04):** `Journal` — texnik `id` PK + `issn @unique` · `EmailToken` — faqat `tokenHash` saqlanadi (token o'zi emas) · fayl metadata'si alohida `File` modelida (`originalName`/`mimeType`/`sizeBytes`/`storageKey`) · `Rating.period` = `YYYY-MM` (oylik; yillik limit va tarix mantiqi `RatingEngine` ichida).
 
 ### 3.1 Foydalanuvchi va kirish (M1)
 
 | Model | Asosiy maydonlar |
 |---|---|
 | **User** | id · username (F.I.Sh., unique) · email (unique) · passwordHash (bcrypt) · role (`student`/`researcher`/`professor`/`admin`/`moderator`/`management`) · category (`bachelor`/`master`, talabalar uchun) · faculty (moderator fakulteti) · status (`pending_email`/`pending_approval`/`active`/`blocked`) · **hemisId (String?, NULL)** · **authProvider (`local`/`hemis`)** · emailVerifiedAt · createdAt |
-| **Profile** | userId (PK, 1:1) · universitet · fakultet · yo'nalish · kurs · guruh · gpa · tugilganSana · rasm (path) · daraja (ilmiy) · lavozim · kafedra · bakalavrOtm (FR-03) |
+| **Profile** | userId (PK, 1:1) · universitet · fakultet · yo'nalish · kurs · guruh · gpa · tugilganSana · **avatarFileId → File?** · daraja (ilmiy) · lavozim · kafedra · bakalavrOtm (FR-03) |
 | **Session** | id · userId · tokenHash (unique) · userAgent · ip · expiresAt · lastUsedAt · createdAt — **DB sessiya (Laravel uslubi)**: «eslab qolish» 30 kun, faol 3 ta (eski tushadi) (FR-10) |
 | **EmailToken** | userId · token · type (`verify`/`reset`) · expiresAt · usedAt (FR-06, FR-08) |
 | **LoginAttempt** | email · ip · attempts · blockedUntil (FR-11: 5 marta → 15 daqiqa) |
@@ -100,10 +102,10 @@ uniscience/
 
 | Model | Asosiy maydonlar |
 |---|---|
-| **Journal** | **issn (PK, 0000-0000)** · journalName · field (23 soha) · tier (`A`–`E`, `X`) · listedFrom · listedTo (NULL — vaqt-qamrov, FR-27) · country · publisher · source (`local_oak`/`intl_oak`/`scopus`/`wos`) |
-| **Article** | id · userId · title · abstractUz/Ru/En · keywordsUz/Ru/En · type (`scopus_q1q2`/`scopus_q3q4_esci`/`intl_oak`/`local_oak`/`local_conf`/`intl_conf`) · journalIssn (nullable — konferensiyada bo'sh) · conferenceName · publishedDate · pdfPath · status (`pending`/`manual_review`/`approved`/`rejected`) · reviewNote · createdAt |
+| **Journal** | **id (PK, texnik)** · **issn (@unique, 0000-0000 — biznes identifikatori)** · journalName · field (23 soha) · tier (`A`–`E`, `X`) · listedFrom · listedTo (NULL — vaqt-qamrov, FR-27) · country · publisher · source (`local_oak`/`intl_oak`/`scopus`/`wos`) |
+| **Article** | id · userId · title · abstractUz/Ru/En · keywordsUz/Ru/En · type (`scopus_q1q2`/`scopus_q3q4_esci`/`intl_oak`/`local_oak`/`local_conf`/`intl_conf`) · journalId (nullable — konferensiyada bo'sh) · conferenceName · publishedDate · pdfFileId → File · doiOrUrl (dubl tekshiruvi) · fieldMatch (`mos`/`turdosh`/`boshqa`) · status (`pending`/`manual_review`/`approved`/`rejected`) · reviewNote · createdAt |
 | **ArticleAuthor** | id · articleId · userId (nullable) · fullName · position (`sole`/`first`/`middle`/`last`) · positionOrder · isSelf (FR-17) |
-| **Certificate** | id · articleId · filePath · status (`pending`/`approved`/`rejected`) · verifiedById · note (FR-19, FR-23c) |
+| **Certificate** | id · articleId (1:1) · **fileId → File** · status (`pending`/`approved`/`rejected`) · verifiedById · note (FR-19, FR-23c) |
 | **JournalRequest** | id · userId · journalName · issn? · url? · status (`pending`/`added`/`rejected`) · note (FR-18) |
 | **ReviewHistory** | id · articleId · reviewerId · decision (`approved`/`rejected`/`manual`) · reason · createdAt (FR-23 — qaror tarixi) |
 
@@ -112,7 +114,7 @@ uniscience/
 | Model | Asosiy maydonlar |
 |---|---|
 | **RatingItem** | id · articleId · userId · wField · wTier · wAuthor · wDate · penalty · rawScore · finalScore · breakdown (JSON matn) · calculatedAt — **har maqolada ball qanday chiqqani ko'rinadi (5.2)** |
-| **Rating** | id · userId · period (`YYYY-MM`) · totalScore · groupRank · facultyRank · universityRank · updatedAt (FR-30, FR-31) |
+| **Rating** | id · userId · **period (`YYYY-MM` — oylik)** · totalScore · groupRank · facultyRank · universityRank · calculatedAt — yillik limit va uzoq tarix mantiqi `RatingEngine` ichida (oylik qatorlardan yig'adi); DB sxemasi soddalashtirilgan (FR-30, FR-31, FR-32) |
 | **Setting** | key (PK) · value (JSON) · updatedAt — koeffitsientlar, yillik chegara, 23 soha guruhlari (FR-53) |
 | **SettingHistory** | id · key · oldValue · newValue · changedById · createdAt (FR-53 — o'zgarish tarixi) |
 
@@ -127,11 +129,13 @@ uniscience/
 
 | Model | Asosiy maydonlar |
 |---|---|
-| **Guide** | id · title · description · filePath · category · sortOrder · createdAt (FR-35, FR-37) |
-| **Video** | id · title · description · filePath · durationSec · category · sortOrder · views · createdAt (FR-36..38) |
-| **News** | id · title · body · type (`competition`/`conference`/`scholarship`/`other`) · deadline? · link? · attachmentPath? · pinned · status (`active`/`archived`) · createdAt (FR-39..42) |
+| **File** | id · **storageKey (@unique)** · originalName · mimeType · sizeBytes · uploadedById? · createdAt — **barcha yuklamalar (PDF, rasm, mp4, sertifikat) shu modelda**; magic-byte tekshiruvi va S3 migratsiyasi uchun (FR-17, FR-19, FR-35, FR-36) |
+| **Guide** | id · title · description · **fileId → File** · category · sortOrder · createdBy · createdAt (FR-35, FR-37) |
+| **Video** | id · title · description · **fileId → File** · durationSec · category · sortOrder · views · createdBy · createdAt (FR-36..38) |
+| **News** | id · title · body · type (`competition`/`conference`/`scholarship`/`other`) · deadline? · link? · **attachmentFileId → File?** · pinned · status (`active`/`archived`) · createdBy · createdAt (FR-39..42) |
 | **Notification** | id · userId · type · title · body · link? · readAt? · createdAt (FR-20, FR-48, FR-68) |
 | **AuditLog** | id · adminId · action · entity · entityId · meta · createdAt (FR-55) |
+| **EmailLog** | id · to · subject · body · tokenLink? · createdAt — yuborilgan emaillar (dev mailbox + audit; SMTP 2-bosqich) |
 
 ### 3.6 Reyting konfiguratsiyasi (settings jadvali, MVP defaultlar)
 

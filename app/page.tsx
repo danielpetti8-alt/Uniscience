@@ -1,87 +1,164 @@
-export default function Home() {
-  const faculties = [
-    { name: "Iqtisodiyot", count: 124 },
-    { name: "Raqamli iqtisodiyot", count: 98 },
-    { name: "Moliya va kredit", count: 76 },
-    { name: "Menejment", count: 54 },
-  ];
+import { ButtonLink } from '@/components/ui/button'
+import { Card, CardBody } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 
-  const groups = [
-    { name: "IQ-62", papers: 18, oak: 12, place: "🥇" },
-    { name: "BI-44", papers: 15, oak: 9, place: "🥈" },
-    { name: "MN-31", papers: 13, oak: 8, place: "🥉" },
-    { name: "RA-21", papers: 11, oak: 7, place: "4" },
-  ];
+const steps = [
+  {
+    n: '1',
+    title: "Ro'yxatdan o'ting",
+    text: "Bakalavr yoki magistr — o'zingiz, bir necha daqiqada. Professor va tadqiqotchilar admin tasdig'idan o'tadi.",
+  },
+  {
+    n: '2',
+    title: 'Maqolani yuklang',
+    text: "3 tilda annotatsiya, kalit so'zlar, jurnalni ISSN bo'yicha tanlang va PDF'ni biriktiring.",
+  },
+  {
+    n: '3',
+    title: 'Reytingda ko‘rining',
+    text: "Moderator tekshiradi, tasdiqlangan maqola portfelga va reytingga — ochiq formula bilan ball oladi.",
+  },
+]
 
+const features = [
+  {
+    icon: '📄',
+    title: 'OAK tekshiruvi',
+    text: "Jurnal ro'yxati va nashr sanasi bo'yicha avtomatik tekshirush — vaqt-qamrov qoidasi bilan.",
+    href: '/yuklash',
+    cta: 'Maqola yuklash',
+  },
+  {
+    icon: '🏆',
+    title: 'Ochiq reyting',
+    text: "Har maqolaning balli koefitsientlar bilan yoyilib ko'rsatiladi: daraja, mualliflik, sana, soha.",
+    href: '/reyting',
+    cta: "Reytingni ko'rish",
+  },
+  {
+    icon: '🤝',
+    title: 'Ilmiy rahbarlik',
+    text: "Professorlarning bo'sh vaqtlarini ko'ring, uchrashuv uchun so'rov yuboring va javobni kuting.",
+    href: '/matching',
+    cta: "Professorlarni ko'rish",
+  },
+  {
+    icon: '📚',
+    title: "Yo'riqnoma va video",
+    text: "Maqola yozish talablari, tuzilishi va video darslar — bir joyda, yuklab olish mumkin.",
+    href: '/yoriqnoma',
+    cta: "Yo'riqnomalar",
+  },
+]
+
+export default function LandingPage() {
   return (
     <div>
       {/* HERO */}
-      <div className="m-5 rounded-[24px] p-8 md:p-12 text-white" style={{background: 'radial-gradient(1200px 600px at 80% -20%, #1e3a8a 0%, #0f1e3d 60%)'}}>
-        <div className="flex justify-between flex-wrap gap-8">
+      <section className="relative overflow-hidden">
+        <div
+          className="absolute inset-0 -z-10"
+          style={{
+            background:
+              'radial-gradient(1100px 520px at 85% -10%, rgba(56,182,227,0.28) 0%, transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(232,179,60,0.22) 0%, transparent 55%), #122B46',
+          }}
+        />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24 grid lg:grid-cols-[1.15fr_0.85fr] gap-12 items-center">
           <div>
-            <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full text-[11px] tracking-wide">
-              <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
-              LIVE • 12 TA MAQOLA BAZADA • TASDIQLANGAN
-            </div>
-            <h1 className="text-4xl md:text-5xl font-extrabold leading-[0.95] mt-4 tracking-tight">
-              Talabalarning <span className="text-gold">Ilmiy Portfeli</span><br />Endi Yagona Joyda
+            <Badge tone="gold" className="mb-5">
+              <span className="w-2 h-2 rounded-full bg-success inline-block" />
+              35 000 TASHABBUS · TASDIQLANGAN LOYIHA
+            </Badge>
+            <h1 className="text-4xl md:text-5xl lg:text-[3.4rem] font-extrabold leading-[1.05] tracking-tight text-white">
+              Talabalarning{' '}
+              <span className="text-gold">raqamli ilmiy portfeli</span>{' '}
+              endi yagona joyda
             </h1>
-            <p className="text-slate-300 mt-3 text-base max-w-lg">
-              TDIU talabalari OAK maqolalarini saqlaydi, fakultetlar reytingi real vaqtda shakllanadi. 35 000 tashabbusda tasdiqlangan loyiha.
+            <p className="text-slate-300 mt-5 text-base md:text-lg max-w-xl leading-relaxed">
+              OAK maqolalaringizni saqlang, fakultet va guruh reytingi real vaqtda
+              shakllanadi, professor bilan ilmiy rahbarlik aloqasini o'rnating.
             </p>
-            <div className="mt-6 flex gap-3">
-              <a href="/papers" className="bg-gold text-navy px-6 py-3 rounded-full font-bold text-sm">Bazani ko'rish →</a>
-              <a href="/upload" className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-full font-bold text-sm">+ Maqola qo'shish</a>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <ButtonLink href="/royhat" variant="gold" size="lg">
+                Ro'yxatdan o'tish →
+              </ButtonLink>
+              <ButtonLink
+                href="/kirish"
+                size="lg"
+                className="bg-white/10 border border-white/25 text-white hover:bg-white/20"
+              >
+                Kabinetga kirish
+              </ButtonLink>
             </div>
           </div>
-          <div className="bg-white text-navy rounded-2xl p-4 min-w-[320px]">
-            <div className="text-[11px] font-extrabold tracking-widest text-slate-500">JONLI STATISTIKA</div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="bg-lightBg rounded-xl p-3"><div className="text-[11px] text-slate-500">JAMI</div><div className="text-2xl font-extrabold">12 ta</div><div className="text-[11px] text-green-600">↑ 23% bu oy</div></div>
-              <div className="bg-yellow-50 rounded-xl p-3"><div className="text-[11px] text-slate-500">OAK TASDIQLANGAN</div><div className="text-2xl font-extrabold">9 ta</div><div className="text-[11px]">75% tasdiq</div></div>
+
+          <Card className="p-6 shadow-xl shadow-navy-dark/20">
+            <div className="text-[11px] font-extrabold tracking-widest text-slate-400">
+              QANDAY ISHLAYDI
             </div>
-            <div className="mt-4">
-              <div className="text-[11px] font-bold">FAKULTETLAR</div>
-              {faculties.map(f => (
-                <div key={f.name} className="mt-2">
-                  <div className="flex justify-between text-xs"><span>{f.name}</span><b>{f.count}</b></div>
-                  <div className="h-1.5 bg-slate-100 rounded-full mt-1"><div className="h-full bg-navy rounded-full" style={{width: `${(f.count/124)*100}%`}}></div></div>
+            <div className="mt-4 space-y-4">
+              {steps.map((s) => (
+                <div key={s.n} className="flex gap-3.5">
+                  <div className="w-9 h-9 rounded-full bg-navy text-white font-extrabold flex items-center justify-center shrink-0">
+                    {s.n}
+                  </div>
+                  <div>
+                    <div className="font-bold text-navy text-sm">{s.title}</div>
+                    <div className="text-sm text-slate-500 mt-0.5 leading-relaxed">{s.text}</div>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         </div>
-      </div>
+      </section>
 
-      {/* STATS */}
-      <div className="px-8 grid md:grid-cols-2 gap-4 mt-6">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h3 className="font-bold">Fakultetlar Reytingi</h3>
-          <div className="mt-4 space-y-3">
-            {faculties.map(f => (
-              <div key={f.name} className="flex items-center gap-3">
-                <div className="w-32 text-xs">{f.name}</div>
-                <div className="flex-1 h-3 bg-slate-100 rounded-full"><div className="h-full bg-navy rounded-full" style={{width: `${(f.count/124)*100}%`}}></div></div>
-                <div className="text-sm font-bold w-8">{f.count}</div>
-              </div>
-            ))}
+      {/* FEATURES */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-14 md:py-20">
+        <div className="max-w-2xl">
+          <h2 className="text-2xl md:text-3xl font-extrabold text-navy tracking-tight">
+            Talaba, professor va rahbariyat uchun bir platforma
+          </h2>
+          <p className="text-slate-500 mt-3">
+            Maqoladan tortib universitet statistikasigacha — barcha bosqichlar bir tizimda.
+          </p>
+        </div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          {features.map((f) => (
+            <Card key={f.title} className="p-5 flex flex-col hover:border-navy/30 transition-colors">
+              <div className="text-2xl">{f.icon}</div>
+              <h3 className="font-bold text-navy mt-3">{f.title}</h3>
+              <p className="text-sm text-slate-500 mt-1.5 leading-relaxed flex-1">{f.text}</p>
+              <ButtonLink href={f.href} variant="ghost" size="sm" className="mt-3 self-start px-0">
+                {f.cta} →
+              </ButtonLink>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="rounded-3xl bg-navy text-white p-8 md:p-12 flex flex-col md:flex-row md:items-center gap-6 justify-between">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+              Ilmiy portfelingizni bugundan shakllantiring
+            </h2>
+            <p className="text-slate-300 mt-2 max-w-lg">
+              Ro'yxatdan o'ting, birinchi maqolani yuklang va guruh reytingida o'rningizni egallang.
+            </p>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <ButtonLink href="/royhat" variant="gold" size="lg">
+              Boshlash
+            </ButtonLink>
+            <ButtonLink href="/yoriqnoma" size="lg" className="bg-white/10 border border-white/25 text-white hover:bg-white/20">
+              Yo'riqnoma
+            </ButtonLink>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h3 className="font-bold">🏆 Guruhlar - TOP 4</h3>
-          <table className="w-full mt-3 text-sm">
-            <thead><tr className="text-[11px] text-slate-400 text-left"><th className="py-2">GURUH</th><th>MAQOLA</th><th>OAK</th><th>O'RIN</th></tr></thead>
-            <tbody>
-              {groups.map(g => (
-                <tr key={g.name} className="border-t border-slate-100">
-                  <td className="py-3 font-bold">{g.name}</td><td>{g.papers}</td><td><span className="bg-green-50 text-green-700 px-2 py-0.5 rounded-full text-xs">{g.oak}</span></td><td>{g.place}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="mt-4 bg-gold rounded-xl p-3 flex gap-2 text-xs text-navy"><span>🎯</span><div><b>Xaitboyev Yusuf</b> - TOP 1% da. Sizning profilingiz reytingga ta'sir qilmoqda.</div></div>
-        </div>
-      </div>
+      </section>
     </div>
-  );
+  )
 }
