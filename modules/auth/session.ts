@@ -125,6 +125,26 @@ export async function destroyUserSessions(prisma: Db, userId: string): Promise<n
   return count
 }
 
+/** Joriy sessiyadan boshqalarini yopadi (parol o'zgartirilganda — FR-13) */
+export async function destroyOtherSessions(
+  prisma: Db,
+  userId: string,
+  keepToken: string | null,
+) {
+  const sessions = await prisma.session.findMany({
+    where: { userId },
+    select: { id: true, tokenHash: true },
+  })
+  const keepHash = keepToken ? hashToken(keepToken) : null
+  const ids = sessions.filter((s) => s.tokenHash !== keepHash).map((s) => s.id)
+  if (ids.length === 0) {
+    return { count: 0 }
+  }
+  const res = await prisma.session.deleteMany({ where: { id: { in: ids } } })
+  return { count: res.count }
+}
+
+
 /** Faol sessiyalar soni (test uchun) */
 export async function countActiveSessions(prisma: Db, userId: string): Promise<number> {
   return prisma.session.count({ where: { userId, expiresAt: { gt: new Date() } } })

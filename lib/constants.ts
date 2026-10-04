@@ -59,6 +59,15 @@ export const LIMITS = {
 /** Sessiya cookie nomi */
 export const SESSION_COOKIE = 'uniscience_session'
 
+/** Bildirishnoma turlari (FR-20, FR-48, FR-68) */
+export const NOTIFICATION_TYPES = {
+  ARTICLE_STATUS: 'article_status',
+  MENTOR_REQUEST: 'mentor_request',
+  MENTOR_RESPONSE: 'mentor_response',
+  SYSTEM: 'system',
+  NEWS: 'news',
+} as const
+
 /** Avatar/fayl limitlari (FR-17, TS-05) — StorageAdapter'da ishlatiladi */
 export const FILE_LIMITS = {
   AVATAR_MAX_MB: 5,

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ButtonLink } from '@/components/ui/button'
+import { NotificationBell } from '@/components/layout/notification-bell'
 
 const navLinks = [
   { href: '/reyting', label: 'Reyting' },
@@ -82,7 +83,8 @@ export function Navbar() {
               {l.label}
             </Link>
           ))}
-          <div className="flex gap-2 pt-2">
+          <div className="flex gap-2 pt-2 items-center">
+            <NotificationBell />
             <ButtonLink href="/kirish" variant="outline" size="sm" className="flex-1">
               Kirish
             </ButtonLink>
