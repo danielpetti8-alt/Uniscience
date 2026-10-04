@@ -1,0 +1,23 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Paper {
+  id          Int      @id @default(autoincrement())
+  studentName String
+  faculty     String
+  groupName   String
+  title       String
+  journal     String
+  year        Int
+  isOAK       Boolean  @default(false)
+  citations   Int      @default(0)
+  keywords    String?
+  pdfPath     String?
+  createdAt   DateTime @default(now())
+}
