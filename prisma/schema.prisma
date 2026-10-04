@@ -1,23 +1,467 @@
+// =============================================================================
+// UniScience.uz — Prisma schema (TZ v2.0, 19-A ilovaga asoslanadi)
+//
+// MUHIM QOIDALAR (Laravel 11 + MySQL 8 migratsiyasi uchun):
+//   1. Enum ISHLATILMAYDI — barcha rol/status/tur maydonlari String + konstantalar
+//      (lib/constants.ts). MySQL'ga o'tishda shu konstantalar saqlanib qoladi.
+//   2. Native tiplar (@db.*) yo'q — faqat standart Prisma tiplari.
+//   3. Provider o'zgarishi (sqlite -> mysql) — shu fayldagi bitta qatorni
+//      o'zgartirish kifoya; qolgan sxema o'zgarmaydi.
+//   4. Model inventory: 24 model — docs/IMPLEMENTATION_PLAN.md bilan 1:1.
+// =============================================================================
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "sqlite" // production: "mysql"
+  url      = env("DATABASE_URL")
 }
 
-model Paper {
-  id          Int      @id @default(autoincrement())
-  studentName String
-  faculty     String
-  groupName   String
-  title       String
-  journal     String
-  year        Int
-  isOAK       Boolean  @default(false)
-  citations   Int      @default(0)
-  keywords    String?
-  pdfPath     String?
+// -----------------------------------------------------------------------------
+// M1 — Foydalanuvchi va kirish (FR-01..11)
+// -----------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(cuid())
+  username        String    @unique // F.I.Sh. — avtomatik shakllanadi (FR-05)
+  email           String    @unique
+  passwordHash    String // bcrypt (FR-07)
+  role            String    @default("student") // student|researcher|professor|admin|moderator|management
+  category        String? // bachelor|master — faqat talabalar (FR-01)
+  faculty         String? // moderator fakulteti (FR-56)
+  status          String    @default("pending_email") // pending_email|pending_approval|active|blocked
+  hemisId         String?   @unique // HEMIS-ready: 2-bosqichda to'ladi (FR-09)
+  authProvider    String    @default("local") // local|hemis (FR-09)
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  profile              Profile?
+  sessions             Session[]
+  emailTokens          EmailToken[]
+  uploadedFiles        File[]
+  articles             Article[]
+  authorLinks          ArticleAuthor[]
+  journalRequests      JournalRequest[]
+  verifiedCertificates Certificate[]
+  reviews              ReviewHistory[]
+  ratingItems          RatingItem[]
+  ratings              Rating[]
+  professorSlots       TimeSlot[]       @relation("ProfessorSlots")
+  studentRequests      MentorRequest[]  @relation("StudentRequests")
+  professorRequests    MentorRequest[]  @relation("ProfessorRequests")
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  settingChanges       SettingHistory[]
+
+  @@index([role, status])
+}
+
+model Profile {
+  userId       String    @id // 1:1
+  universitet  String?
+  fakultet     String?
+  yonalish     String? // yo'nalish — W_soha aniqlash uchun (5.2)
+  kurs         Int?
+  guruh        String?
+  gpa          Float?
+  tugilganSana DateTime?
+  avatarFileId String? // -> File (≤5 MB, kvadrat crop — FR-12, TS-05)
+  daraja       String? // ilmiy daraja (professor/tadqiqotchi — FR-04)
+  lavozim      String?
+  kafedra      String?
+  bakalavrOtm  String? // magistratura: bakalavr bitirgan OTM (FR-03)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user   User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatar File? @relation("ProfileAvatar", fields: [avatarFileId], references: [id])
+}
+
+// DB sessiya (Laravel uslubi): token o'zi saqlanmaydi, faqat hashi (FR-10)
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String?
+  ip         String?
+  expiresAt  DateTime // «eslab qolish» = 30 kun
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Email tasdiqlash / parol tiklash tokenlari — FAQAT hash saqlanadi (FR-06, FR-08)
+model EmailToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  type      String // verify|reset
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+}
+
+// Brute-force himoyasi: 5 marta noto'g'ri -> 15 daqiqa blok (FR-11, TS-21)
+model LoginAttempt {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  ip           String?
+  attempts     Int       @default(0)
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Fayllar — barcha yuklamalar (PDF/rasm/mp4/sertifikat) shu modelda
+// magic-byte tekshiruvi (FR-17) va S3 migratsiyasi uchun metadata (2026-10-04)
+// -----------------------------------------------------------------------------
+
+model File {
+  id           String   @id @default(cuid())
+  storageKey   String   @unique // storage/... yoki S3 key
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  uploadedBy       User?         @relation(fields: [uploadedById], references: [id])
+  articlePdfs      Article[]     @relation("ArticlePdf")
+  certificateFiles Certificate[] @relation("CertificateFile")
+  guideFiles       Guide[]       @relation("GuideFile")
+  videoFiles       Video[]       @relation("VideoFile")
+  newsAttachments  News[]        @relation("NewsAttachment")
+  avatarOf         Profile[]     @relation("ProfileAvatar")
+}
+
+// -----------------------------------------------------------------------------
+// M4 — OAK jurnallar ma'lumotnomasi (FR-26..29)
+// issn = biznes identifikatori (@unique); texnik PK — alohida id (2026-10-04)
+// -----------------------------------------------------------------------------
+
+model Journal {
+  id          String    @id @default(cuid())
+  issn        String    @unique // 0000-0000
+  journalName String
+  field       String // 23 soha (lib/constants.ts)
+  tier        String // A|B|C|D|E|X
+  listedFrom  DateTime // ro'yxatdan o'tgan sana
+  listedTo    DateTime? // NULL = hozir ro'yxatda (vaqt-qamrov qoidasi — FR-27)
+  country     String?
+  publisher   String?
+  source      String // local_oak|intl_oak|scopus|wos
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  articles Article[]
+
+  @@index([tier])
+  @@index([field])
+}
+
+// -----------------------------------------------------------------------------
+// M3 — Maqolalar va tekshiruv (FR-17..25)
+// -----------------------------------------------------------------------------
+
+model Article {
+  id             String   @id @default(cuid())
+  userId         String // yuklagan foydalanuvchi
+  title          String
+  abstractUz     String // 3 til majburiy (FR-17, TS-07)
+  abstractRu     String
+  abstractEn     String
+  keywordsUz     String
+  keywordsRu     String
+  keywordsEn     String
+  type           String // scopus_q1q2|scopus_q3q4_esci|intl_oak|local_oak|local_conf|intl_conf
+  journalId      String? // konferensiyada NULL
+  conferenceName String?
+  publishedDate  DateTime // nashr sanasi — vaqt-qamrov tekshiruvi (FR-23a)
+  pdfFileId      String? // -> File (≤20 MB — FR-17)
+  doiOrUrl       String? // dubl tekshiruvi (FR-21)
+  fieldMatch     String? // mos|turdosh|boshqa — W_soha aniqlash (5.2)
+  status         String   @default("pending") // pending|manual_review|approved|rejected
+  reviewNote     String? // rad sababi — talabaga to'liq ko'rinadi (FR-22)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id])
+  journal     Journal?        @relation(fields: [journalId], references: [id])
+  pdfFile     File?           @relation("ArticlePdf", fields: [pdfFileId], references: [id])
+  authors     ArticleAuthor[]
+  certificate Certificate?
+  reviews     ReviewHistory[]
+  ratingItem  RatingItem?
+
+  @@index([userId])
+  @@index([status])
+  @@index([journalId])
+}
+
+model ArticleAuthor {
+  id            String  @id @default(cuid())
+  articleId     String
+  userId        String? // tizim foydalanuvchisi bo'lsa
+  fullName      String
+  position      String // sole|first|middle|last — W_muallif (5.2)
+  positionOrder Int
+  isSelf        Boolean @default(false)
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+}
+
+// Konferensiya tasdiqlovchi sertifikati — majburiy, alohida tekshiriladi (FR-19, TS-08)
+model Certificate {
+  id           String   @id @default(cuid())
+  articleId    String   @unique
+  fileId       String // -> File
+  status       String   @default("pending") // pending|approved|rejected
+  verifiedById String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  article    Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  file       File    @relation("CertificateFile", fields: [fileId], references: [id])
+  verifiedBy User?   @relation(fields: [verifiedById], references: [id])
+}
+
+// «Jurnal ro'yxatda yo'q» arizasi (FR-18, TS-10)
+model JournalRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  journalName String
+  issn        String?
+  url         String?
+  note        String?
+  status      String   @default("pending") // pending|added|rejected
+  adminNote   String?
   createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([status])
+}
+
+// Tekshiruv qarorlari tarixi (FR-23)
+model ReviewHistory {
+  id         String   @id @default(cuid())
+  articleId  String
+  reviewerId String
+  decision   String // approved|rejected|manual
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  article  Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reviewer User    @relation(fields: [reviewerId], references: [id])
+}
+
+// -----------------------------------------------------------------------------
+// M5 — Reyting (FR-30..34)
+// period = "YYYY-MM" (oylik). Yillik limit va uzoq tarix — RatingEngine ichida.
+// -----------------------------------------------------------------------------
+
+// Har maqola bo'yicha ball yoyilmasi (5.2 — koefitsientlar bilan ko'rsatiladi)
+model RatingItem {
+  id           String   @id @default(cuid())
+  articleId    String   @unique
+  userId       String
+  wField       Float // W_soha: mos 1.0 | turdosh 0.7 | boshqa 0.5
+  wTier        Float // W_daraja: A10 B7 C5 D3 E1 X0
+  wAuthor      Float // W_muallif: sole 1.0 | first 0.8 | last 0.6 | middle 0.4
+  wDate        Float // W_sana: ≤1y 1.0 | 2y 0.8 | 3y 0.6 | >3y 0.4
+  penalty      Float    @default(0) // P_xavf (bitta jurnal ×0.8 va h.k.)
+  rawScore     Float
+  finalScore   Float
+  breakdown    String // JSON — yoyilma tafsilotlari
+  calculatedAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+model Rating {
+  id             String   @id @default(cuid())
+  userId         String
+  period         String // YYYY-MM (oylik) — yillik yig'indi RatingEngine'da
+  totalScore     Float    @default(0)
+  groupRank      Int?
+  facultyRank    Int?
+  universityRank Int?
+  calculatedAt   DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, period])
+}
+
+// Koeffitsientlar, yillik chegara, 23 soha guruhlari (FR-53)
+model Setting {
+  key       String           @id
+  value     String // JSON
+  updatedAt DateTime         @updatedAt
+  history   SettingHistory[]
+}
+
+// Sozlama o'zgarishlari tarixi (FR-53 — ochiqlik)
+model SettingHistory {
+  id          String   @id @default(cuid())
+  key         String
+  oldValue    String?
+  newValue    String
+  changedById String
+  createdAt   DateTime @default(now())
+
+  setting   Setting @relation(fields: [key], references: [key])
+  changedBy User    @relation(fields: [changedById], references: [id])
+
+  @@index([key])
+}
+
+// -----------------------------------------------------------------------------
+// M8 — Professor–talaba matching (FR-43..49)
+// -----------------------------------------------------------------------------
+
+model TimeSlot {
+  id          String   @id @default(cuid())
+  professorId String
+  date        DateTime
+  startTime   String // "HH:mm"
+  endTime     String // "HH:mm"
+  location    String // xona yoki «onlayn»
+  status      String   @default("open") // open|booked|cancelled
+  createdAt   DateTime @default(now())
+
+  professor User            @relation("ProfessorSlots", fields: [professorId], references: [id])
+  requests  MentorRequest[]
+
+  @@index([professorId, date])
+}
+
+model MentorRequest {
+  id           String    @id @default(cuid())
+  studentId    String
+  professorId  String
+  slotId       String
+  message      String // ≤500 belgi (FR-45)
+  status       String    @default("pending") // pending|accepted|rejected|cancelled
+  responseNote String? // professor izohi (FR-46)
+  createdAt    DateTime  @default(now())
+  respondedAt  DateTime?
+
+  student   User     @relation("StudentRequests", fields: [studentId], references: [id])
+  professor User     @relation("ProfessorRequests", fields: [professorId], references: [id])
+  slot      TimeSlot @relation(fields: [slotId], references: [id])
+
+  @@index([studentId, status])
+  @@index([professorId, status])
+}
+
+// -----------------------------------------------------------------------------
+// M6/M7 — Yo'riqnomalar, video darslar, yangiliklar (FR-35..42)
+// -----------------------------------------------------------------------------
+
+model Guide {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  fileId      String // -> File (PDF/DOCX — FR-35)
+  category    String   @default("umumiy")
+  sortOrder   Int      @default(0)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  file File @relation("GuideFile", fields: [fileId], references: [id])
+}
+
+model Video {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  fileId      String // -> File (mp4 — FR-36)
+  durationSec Int      @default(0)
+  category    String   @default("umumiy")
+  sortOrder   Int      @default(0)
+  views       Int      @default(0) // ko'rilganlik hisobi (FR-38)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+
+  file File @relation("VideoFile", fields: [fileId], references: [id])
+}
+
+model News {
+  id               String    @id @default(cuid())
+  title            String
+  body             String
+  type             String    @default("other") // competition|conference|scholarship|other
+  deadline         DateTime? // muddati o'tsa avtomatik arxiv (FR-42)
+  link             String?
+  attachmentFileId String? // -> File? (PDF ilova — FR-40)
+  pinned           Boolean   @default(false) // muhim e'lonni yopishtirish (FR-40)
+  status           String    @default("active") // active|archived
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  attachment File? @relation("NewsAttachment", fields: [attachmentFileId], references: [id])
+
+  @@index([status, pinned])
+}
+
+// -----------------------------------------------------------------------------
+// Bildirishnomalar va tizim (FR-20, FR-48, FR-55, FR-68)
+// -----------------------------------------------------------------------------
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // article_status|mentor_request|mentor_response|system|news
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+// Admin amallari audit-logi (FR-55)
+model AuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  action    String // create|update|delete|approve|reject|block|role_change|settings_change
+  entity    String // user|article|journal|setting|...
+  entityId  String?
+  meta      String? // JSON
+  createdAt DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+  @@index([entity, entityId])
+}
+
+// Yuborilgan emaillar — dev mailbox + audit (SMTP 2-bosqichda MailAdapter)
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  body      String
+  tokenLink String? // tasdiqlash/tiklash havolasi (faqat dev muhitida)
+  createdAt DateTime @default(now())
 }
